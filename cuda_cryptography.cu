@@ -12,8 +12,24 @@
  * usage: a method to depict the usaged of the command file.
  */
 void usage(const char *command) {
-    printf("Usage: %s <inputFile> <outputFile> <key>\n", command);
+    // printf("Usage: %s <inputFile> <outputFile> <key>\n", command);
+    printf("Usage: %s <byteCount> <key>\n", command);
     exit(0);
+}
+
+/**
+ * file_content_generator: Given a bytecount simulate reading a file
+ */
+int* file_content_generator(int byteCount) {
+    // Create bytes buffer
+    int* contents = (int*) malloc(sizeof(int) * byteCount);
+    
+    // Read the contents of the file and save it on the array created.
+    int idx = 0;
+    while (idx < byteCount) {
+        contents[idx] = rand() % 255;
+        idx = idx + 1;
+    }
 }
 
 /**
@@ -98,9 +114,9 @@ void simple_decrypt(int* ciphertext_content, int* plaintext_content, int key) {
 /**
  * testWithoutCUDA: given input and output files and a key, encrypt the input and save it on the output, then do the reverse.
  */
-void testWithoutCUDA(char* inputfile, char* outputfile, int key) {
+void testWithoutCUDA(int byteCount, int key) { // char* inputfile, char* outputfile, int key) {
     // Prepare byte buffers
-    int* plaintext = read_file_contents(inputfile);
+    int* plaintext = file_content_generator(byteCount); // read_file_contents(inputfile);
     int* ciphertext = (int*) malloc(sizeof(plaintext));
 
     printf("Running test without CUDA\n");
@@ -110,15 +126,15 @@ void testWithoutCUDA(char* inputfile, char* outputfile, int key) {
     simple_encrypt(plaintext, ciphertext, key);
 
     // Write ciphertext to a file
-    printf("Creating file: %s\n", strcat("no-cuda-",outputfile));
-    write_file_contents(strcat("no-cuda-",outputfile), ciphertext);
+    // printf("Creating file: %s\n", strcat("no-cuda-",outputfile));
+    // write_file_contents(strcat("no-cuda-",outputfile), ciphertext);
 
     // Decrypt 
     simple_decrypt(ciphertext, plaintext, key);
 
     // Write plaintext to a file
-    printf("Creating file: %s\n", strcat("no-cuda-",inputfile));
-    write_file_contents(strcat("no-cuda-",inputfile), plaintext);
+    // printf("Creating file: %s\n", strcat("no-cuda-",inputfile));
+    // write_file_contents(strcat("no-cuda-",inputfile), plaintext);
 }
 
 /**
@@ -140,11 +156,11 @@ __global__ void simple_decryptCUDA(int* ciphertext_content, int* plaintext_conte
 /**
  * testWithCUDA: given input and output files and a key, encrypt the input and save it on the output, then do the reverse.
  */
-void testWithCUDA(char* inputfile, char* outputfile, int key) {
+void testWithCUDA(int byteCount, int key) { //char* inputfile, char* outputfile, int key) {
     // Prepare byte buffers and cuda variables
-    int* plaintext = read_file_contents(inputfile);
+    int* plaintext = file_content_generator(byteCount); // read_file_contents(inputfile);
     int* ciphertext = (int*) malloc(sizeof(plaintext));
-    int totalThreads = sizeof(plaintext);
+    int totalThreads = byteCount;
    	int blockSize = 256;
 	int numBlocks = totalThreads/blockSize;
 
@@ -177,16 +193,16 @@ void testWithCUDA(char* inputfile, char* outputfile, int key) {
 	cudaDeviceSynchronize();
 
     // Write ciphertext to a file
-    printf("Creating file: %s\n", strcat("cuda-",outputfile));
-    write_file_contents(strcat("cuda-",outputfile), pinned_ciphertext);
+    // printf("Creating file: %s\n", strcat("cuda-",outputfile));
+    // write_file_contents(strcat("cuda-",outputfile), pinned_ciphertext);
     
     // Decrypt
     simple_decryptCUDA<<<numBlocks,totalThreads>>> (dev_ciphertext, dev_plaintext, key);
 	cudaDeviceSynchronize();
 
     // Write plaintext to a file
-    printf("Creating file: %s\n", strcat("cuda-",outputfile));
-    write_file_contents(strcat("cuda-",inputfile), pinned_plaintext);
+    // printf("Creating file: %s\n", strcat("cuda-",outputfile));
+    // write_file_contents(strcat("cuda-",inputfile), pinned_plaintext);
 
     // Free reserved memory
 	cudaFree(dev_plaintext);
@@ -196,15 +212,16 @@ void testWithCUDA(char* inputfile, char* outputfile, int key) {
 }
 
 int main(int argc, char** argv) {
-	char* inputfile;
-	char* outputfile;
+	// char* inputfile;
+	// char* outputfile;
     int key;
-
+    int byteCount;
 	// read command line arguments
-	if (argc == 4) {
-	    inputfile = argv[1];
-	    outputfile = argv[2];
-        key = atoi(argv[3]);
+	if (argc == 3) {
+	    // inputfile = argv[1];
+	    // outputfile = argv[2];
+        byteCount = atoi(argv[1]);
+        key = atoi(argv[2]);
     } else {
         usage(argv[0]);
     }
@@ -215,14 +232,14 @@ int main(int argc, char** argv) {
 
     // Do test without cuda
     start = clock();
-    testWithoutCUDA(inputfile, outputfile, key);
+    testWithoutCUDA(byteCount, key); // inputfile, outputfile, key);
    	end = clock();
     timePassedMiliSeconds = (double) (end - start) * 1000 / CLOCKS_PER_SEC;
 	printf("Test Time: %f Miliseconds\n\n\n", timePassedMiliSeconds);
 
     // Do test with cuda
     start = clock();
-    testWithCUDA(inputfile, outputfile, key);
+    testWithCUDA(byteCount, key); // inputfile, outputfile, key);
    	end = clock();
     timePassedMiliSeconds = (double) (end - start) * 1000 / CLOCKS_PER_SEC;
 	printf("Test Time: %f Miliseconds\n\n\n", timePassedMiliSeconds);
