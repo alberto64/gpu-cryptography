@@ -145,7 +145,7 @@ int main(int argc, char** argv) {
     int key;
 
 	// read command line arguments
-	if (argc == 3) {
+	if (argc == 4) {
 	    inputfile = argv[1];
 	    outputfile = argv[2];
         key = atoi(argv[3]);
