@@ -30,6 +30,8 @@ int* file_content_generator(int byteCount) {
         contents[idx] = rand() % 255;
         idx = idx + 1;
     }
+    
+    return contents;
 }
 
 /**
@@ -120,7 +122,7 @@ void testWithoutCUDA(int byteCount, int key) { // char* inputfile, char* outputf
     int* ciphertext = (int*) malloc(sizeof(plaintext));
 
     printf("Running test without CUDA\n");
-    printf("Size of file: %d bytes\n", sizeof(plaintext));
+    printf("Size of file: %d bytes\n", byteCount);
 
     // Encrypt
     simple_encrypt(plaintext, ciphertext, key);
