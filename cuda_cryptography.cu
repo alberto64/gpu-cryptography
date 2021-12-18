@@ -1,108 +1,174 @@
-/**
- * @file	cuda_cryptography.c
- * @author	Alberto De Jesus
- * @brief Using cuda to handle large files and encrypt using cuda AES.
- */
-
-#include "source/rijndael.c"
 #include <stdio.h>
 #include <time.h>
+#include <string.h>
 
-void print(char* content, int size) {
-    for (int idx = 0; idx < size; idx++) {
-	    printf("%s", content[idx]);
+
+void usage(const char *command) {
+    printf("Usage: %s <inputFile> <outputFile> <key>\n", command);
+    exit(0);
+}
+
+int* read_file_contents(char* filepath) {
+
+    FILE* file = fopen(filepath, "rb");
+
+    if(file == NULL){
+        printf("Error in opening file\n");
+        exit(0);
     }
-    printf("\n");
-}
 
-void encrypt(RijnKeyParam* key, char* content, int size) {
-    for(int idx = 0; idx < size; idx++) {
-        rijn_encrypt(key, content[idx]);
+    fseek(file, 0L, SEEK_END);
+    int* contents = (int*) malloc(sizeof(int) * ftell(file));
+    rewind(file);
+    int idx = 0;
+
+    while ((contents[idx] = fgetc(file)) != EOF) {
+        idx = idx + 1;
     }
-}
-
-void decrypt(RijnKeyParam* key, char* content, int size) {
-    for(int idx = 0; idx < size; idx++) {
-        rijn_decrypt(key, content[idx]);
-    }
-}
-
-RijnKeyParam* key() {
-    RijnKeyParam* key;
-    key.num_key = 4;
-    key.num_round = 10;
-    key.enc_key[60] = { 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
-	16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
-    };
-    key.dec_key[60] = { 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
-	16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
-    };
-
-    return key;
-}
-
-char** load_file_contents(char* filepath) {
-
-    FILE *fp;
-    fp = fopen(filepath, "r");
-
-    fseek(fp, 0L, SEEK_END);
-
-    char** contents = (char**) malloc(sizeof(char*) * ftell(fp));
-
-    rewind(fp);
-
-    int count = 0;
-
-    while(fscanf(fp, "%s", &contents[count]) == 1) { 
-        count++;
-    } 
 
     fclose(fp);
 
     return contents;
 }
 
-void usage(const char *command) {
-    printf("Usage: %s <filepath> <blockCount>\n", command);
-    exit(0);
+int* write_file_contents(char* filepath, int* contents) {
+
+    FILE* file = fopen(filepath, "wb+");
+
+    if(file == NULL){
+        printf("Error in opening file\n");
+        exit(0);
+    }
+
+    int idx = 0;
+
+    while (fputc(contents[0], file)) != EOF && idx < sizeof(contents)) {
+        idx = idx + 1;
+    }
+
+    fclose(fp);
+
+    return contents;
 }
 
-int main(int argc, char** argv) {
-	
-	// Set default values in case arguments don't come in command line.
-	// int numBlocks = 4;
-   	// int blockSize = 256;
+void simple_encrypt(int* plaintext_content, int* ciphertext_content, int key) {
+    int idx;
+    while (idx < sizeof(contents)) {
+        ciphertext_content[idx] = plaintext_content[idx] + key;
+        idx = idx + 1;
+    }
+}
 
-	char* file;
+void simple_decrypt(int* ciphertext_file, int* plaintext_content, int key) {
+    int idx;
+    while (idx < sizeof(contents)) {
+        ciphertext_content[idx] = plaintext_content[idx] - key;
+        idx = idx + 1;
+    }
+}
+
+void testWithoutCUDA(char* inputfile, char* outputfile, int key) {
+    int* plaintext = read_file_contents(inputfile);
+    int* ciphertext = (int*) malloc(sizeof(plaintext_content));
+
+    printf("Running test without CUDA\n");
+    printf("Size of file: %d bytes\n", sizeof(plaintext));
+
+    simple_encrypt(plaintext, ciphertext, key);
+    write_file_contents(strcat("no-cuda-",outputfile), ciphertext);
+    simple_decrypt(ciphertext, plaintext, key);
+    write_file_contents(strcat("no-cuda-",inputfile), plaintext);
+}
+
+__global__ void simple_encryptCUDA(int* plaintext_content, int* ciphertext_content, int key) {
+	int idx = threadIdx.x + (blockIdx.x * blockDim.x); 
+    ciphertext_content[idx] = plaintext_content[idx] + key;
+}
+
+__global__ void simple_decryptCUDA(int* ciphertext_file, int* plaintext_content, int key) {
+	int idx = threadIdx.x + (blockIdx.x * blockDim.x); 
+    ciphertext_content[idx] = plaintext_content[idx] - key;
+}
+
+void testWithCUDA(char* inputfile, char* outputfile, int key) {
+    int* plaintext = read_file_contents(inputfile);
+    int* ciphertext = (int*) malloc(sizeof(plaintext_content));
+    int totalThreads = sizeof(plaintext_content);
+   	int blockSize = 256;
+	int numBlocks = totalThreads/blockSize;
+
+	// validate thread count
+	if (totalThreads % blockSize != 0) {
+		++numBlocks;
+		blockSize = totalThreads / numBlocks;
+	}
+
+    printf("Running test with CUDA\n");
+    printf("Size of file: %d bytes\n", totalThreads);
+
+	int* pinned_plaintext;
+    int* pinned_ciphertext;
+	cudaMallocHost((void**)&pinned_plaintext, totalThreads * sizeof(int));
+	cudaMallocHost((void**)&pinned_ciphertext, totalThreads * sizeof(int));
+    memcpy(pinned_plaintext, plaintext, totalThreads * sizeof(int));  
+
+
+    // Prepare cuda variables
+	int* dev_plaintext, *dev_ciphertext;
+
+	// Copy inputs into device memory
+	cudaHostGetDevicePointer(&dev_plaintext, plaintext, 0);
+    cudaHostGetDevicePointer(&dev_ciphertext, ciphertext, 0);
+
+    // Encrypt
+    simple_encryptCUDA<<<numBlocks,totalThreads>>> (dev_plaintext, dev_ciphertext, key);
+	cudaDeviceSynchronize();
+
+    write_file_contents(strcat("cuda-",outputfile), pinned_ciphertext);
+    
+    // Decrypt
+    simple_decryptCUDA<<<numBlocks,totalThreads>>> (dev_ciphertext, dev_plaintext, key);
+	cudaDeviceSynchronize();
+
+    write_file_contents(strcat("cuda-",inputfile), pinned_plaintext);
+
+    	// Free reserved memory
+	cudaFree(dev_plaintext);
+	cudaFree(dev_ciphertext);
+	cudaFreeHost(pinned_plaintext);
+	cudaFreeHost(pinned_ciphertext);
+}
+
+int main() {
+	char* inputfile;
+	char* outputfile;
+    int key;
 
 	// read command line arguments
-	if (argc >= 1) {
-        usage(argv[0]);
-    } else if (argc <= 2) {
-        file = argv[1];
-	} else if (argc <= 3) {
-        file = argv[1];
-		// numBlocks = atoi(argv[2]);
-	} else {
+	if (argc == 3) {
+	    inputfile = argv[1];
+	    outputfile = argv[2];
+        key = atoi(argv[3]);
+    } else {
         usage(argv[0]);
     }
 
-    // int totalThreads = numBlocks * blockSize;
+	// Set up variables for timing
+	clock_t start, end;
+	double timePassedMiliSeconds;
 
-    char** file_content = load_file_contents(file);
+    start = clock();
+    testWithoutCUDA(inputfile, outputfile, key);
+   	end = clock();
+    timePassedMiliSeconds = (double) (end - start) * 1000 / CLOCKS_PER_SEC;
+	printf("Test Time: %f Miliseconds\n", timePassedMiliSeconds);
 
-    RijnKeyParam* key_struct = key();
 
-    print(file_content);
-
-    encrypt(key_struct, file_content, sizeof(file_content));
-
-    print(file_content);
-   
-    decrypt(key_struct, file_content, sizeof(file_content));
-
-    print(file_content);
+    start = clock();
+    testWithCUDA(inputfile, outputfile, key);
+   	end = clock();
+    timePassedMiliSeconds = (double) (end - start) * 1000 / CLOCKS_PER_SEC;
+	printf("Test Time: %f Miliseconds\n", timePassedMiliSeconds);
 
     return 0;
 }
