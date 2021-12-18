@@ -26,7 +26,7 @@ int* read_file_contents(char* filepath) {
         idx = idx + 1;
     }
 
-    fclose(fp);
+    fclose(file);
 
     return contents;
 }
@@ -42,18 +42,18 @@ int* write_file_contents(char* filepath, int* contents) {
 
     int idx = 0;
 
-    while (fputc(contents[0], file)) != EOF && idx < sizeof(contents)) {
+    while (fputc(contents[0], file) != EOF && idx < sizeof(contents)) {
         idx = idx + 1;
     }
 
-    fclose(fp);
+    fclose(file);
 
     return contents;
 }
 
 void simple_encrypt(int* plaintext_content, int* ciphertext_content, int key) {
     int idx;
-    while (idx < sizeof(contents)) {
+    while (idx < sizeof(plaintext_content)) {
         ciphertext_content[idx] = plaintext_content[idx] + key;
         idx = idx + 1;
     }
@@ -61,7 +61,7 @@ void simple_encrypt(int* plaintext_content, int* ciphertext_content, int key) {
 
 void simple_decrypt(int* ciphertext_file, int* plaintext_content, int key) {
     int idx;
-    while (idx < sizeof(contents)) {
+    while (idx < sizeof(ciphertext_file)) {
         ciphertext_content[idx] = plaintext_content[idx] - key;
         idx = idx + 1;
     }
@@ -85,15 +85,15 @@ __global__ void simple_encryptCUDA(int* plaintext_content, int* ciphertext_conte
     ciphertext_content[idx] = plaintext_content[idx] + key;
 }
 
-__global__ void simple_decryptCUDA(int* ciphertext_file, int* plaintext_content, int key) {
+__global__ void simple_decryptCUDA(int* ciphertext_content, int* plaintext_content, int key) {
 	int idx = threadIdx.x + (blockIdx.x * blockDim.x); 
     ciphertext_content[idx] = plaintext_content[idx] - key;
 }
 
 void testWithCUDA(char* inputfile, char* outputfile, int key) {
     int* plaintext = read_file_contents(inputfile);
-    int* ciphertext = (int*) malloc(sizeof(plaintext_content));
-    int totalThreads = sizeof(plaintext_content);
+    int* ciphertext = (int*) malloc(sizeof(plaintext));
+    int totalThreads = sizeof(plaintext);
    	int blockSize = 256;
 	int numBlocks = totalThreads/blockSize;
 
@@ -139,7 +139,7 @@ void testWithCUDA(char* inputfile, char* outputfile, int key) {
 	cudaFreeHost(pinned_ciphertext);
 }
 
-int main() {
+int main(int argc, char** argv) {
 	char* inputfile;
 	char* outputfile;
     int key;
