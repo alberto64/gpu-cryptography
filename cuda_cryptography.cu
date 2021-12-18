@@ -52,16 +52,16 @@ int* write_file_contents(char* filepath, int* contents) {
 }
 
 void simple_encrypt(int* plaintext_content, int* ciphertext_content, int key) {
-    int idx;
+    int idx = 0;
     while (idx < sizeof(plaintext_content)) {
         ciphertext_content[idx] = plaintext_content[idx] + key;
         idx = idx + 1;
     }
 }
 
-void simple_decrypt(int* ciphertext_file, int* plaintext_content, int key) {
-    int idx;
-    while (idx < sizeof(ciphertext_file)) {
+void simple_decrypt(int* ciphertext_content, int* plaintext_content, int key) {
+    int idx = 0;
+    while (idx < sizeof(ciphertext_content)) {
         ciphertext_content[idx] = plaintext_content[idx] - key;
         idx = idx + 1;
     }
@@ -69,7 +69,7 @@ void simple_decrypt(int* ciphertext_file, int* plaintext_content, int key) {
 
 void testWithoutCUDA(char* inputfile, char* outputfile, int key) {
     int* plaintext = read_file_contents(inputfile);
-    int* ciphertext = (int*) malloc(sizeof(plaintext_content));
+    int* ciphertext = (int*) malloc(sizeof(plaintext));
 
     printf("Running test without CUDA\n");
     printf("Size of file: %d bytes\n", sizeof(plaintext));
