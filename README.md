@@ -1,3 +1,3 @@
 # gpu-cryptography
 
-Haven't pushed code yet, my apologize.
+Run the file 'run.sh' to start the test script.
